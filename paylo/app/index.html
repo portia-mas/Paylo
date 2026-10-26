@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Paylo — Digital Till</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" onerror="void 0"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="void 0"></script>
+<style>
+:root{
+  color-scheme:light;
+  --ink:#10302b; --muted:#4d6b66; --teal:#00594f; --teal2:#0b7a6d; --mint:#d9efe9;
+  --paper:#eef4f2; --card:#ffffff; --line:#cfe0dc; --orange:#f99d1c; --orange-ink:#3a2300;
+  --danger:#b3261e; --dangerbg:#fde8e6; --ok:#17794f; --okbg:#dff3e8; --warnbg:#fff1d6;
+  --bezel:#0a1412; --slip:#ffffff; --slipink:#1b1b1b;
+  --head:"Rockwell","Roboto Slab","Bookman Old Style",Georgia,serif;
+  --body:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{color-scheme:dark;--ink:#e4f1ee;--muted:#9bb8b2;--teal:#0b7a6d;--teal2:#35a798;--mint:#173a35;
+  --paper:#0b1b19;--card:#122624;--line:#24433e;--danger:#ff8a80;--dangerbg:#3a1a18;--ok:#6fd6a5;--okbg:#10321f;--warnbg:#3a2c0e;}
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);line-height:1.5;font-size:16px}
+h1,h2,h3,h4{font-family:var(--head);line-height:1.15;margin:0 0 .5rem;letter-spacing:-.01em}
+h1{font-size:clamp(2rem,5vw,3.2rem)} h2{font-size:clamp(1.5rem,3vw,2rem)} h3{font-size:1.2rem} h4{font-size:1rem}
+p{margin:.3rem 0 .8rem}
+a{color:var(--teal2)}
+button{font:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+.top{position:sticky;top:0;z-index:20;background:var(--teal);color:#fff;display:flex;gap:1rem;align-items:center;flex-wrap:wrap;padding:.6rem 1rem}
+.brand{font-family:var(--head);font-weight:800;font-size:1.25rem;display:flex;align-items:center;gap:.5rem;margin-right:auto}
+.brand i{width:26px;height:26px;border-radius:7px;background:var(--orange);display:inline-block;position:relative}
+.brand i::after{content:"";position:absolute;left:6px;right:6px;top:8px;height:3px;background:var(--teal);box-shadow:0 6px 0 var(--teal)}
+.tabs{display:flex;gap:.25rem;flex-wrap:wrap}
+.tabs button{background:transparent;color:#d5ece7;border:0;padding:.5rem .85rem;border-radius:999px;font-weight:600}
+.tabs button[aria-selected=true]{background:#fff;color:var(--teal)}
+main{max-width:1120px;margin:0 auto;padding:1.5rem 1rem 4rem}
+.view{display:none}.view.on{display:block}
+.lead{font-size:1.15rem;color:var(--muted);max-width:60ch}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:1.1rem 1.2rem}
+.box.tint{background:var(--mint);border-color:transparent}
+.small{font-size:.875rem;color:var(--muted)}
+.tag{display:inline-block;background:var(--mint);color:var(--teal);border-radius:6px;padding:.1rem .5rem;font-size:.8rem;font-weight:700}
+@media (prefers-color-scheme:dark){.tag{color:var(--teal2)}}
+.tag.warn{background:var(--warnbg);color:var(--orange)}
+.tag.bad{background:var(--dangerbg);color:var(--danger)}
+.tag.ok{background:var(--okbg);color:var(--ok)}
+
+/* story */
+.hero{padding:2rem 0 1rem;max-width:760px}
+.chapters{display:grid;gap:0;margin:1.5rem 0;border-left:4px solid var(--orange);padding-left:1.25rem}
+.chapter{padding:.2rem 0 1.4rem;position:relative}
+.chapter::before{content:"";position:absolute;left:calc(-1.25rem - 10px);top:.5rem;width:16px;height:16px;border-radius:50%;background:var(--teal);border:3px solid var(--paper)}
+.chapter h3{margin-bottom:.25rem}
+.quote{border-left:4px solid var(--teal2);background:var(--card);padding:.8rem 1rem;border-radius:0 10px 10px 0;margin:.8rem 0;font-family:var(--head);font-size:1.05rem}
+.script{background:var(--teal);color:#fff;border-radius:16px;padding:1.4rem 1.6rem}
+.script h3{color:#fff}.script p{color:#e6f4f1}
+
+/* app layout */
+.applayout{display:flex;justify-content:center;align-items:flex-start}
+@media(max-width:860px){.phone{margin:0 auto}}
+.phone{width:100%;max-width:392px;height:790px;display:flex;flex-direction:column;background:var(--paper);border:8px solid var(--bezel);border-radius:36px;overflow:hidden;position:relative;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+@media(max-width:480px){.phone{border-width:0;border-radius:0;height:calc(100vh - 120px);min-height:620px}}
+.ph-head{background:var(--teal);color:#fff;padding:.65rem .9rem;display:flex;align-items:center;gap:.5rem}
+.ph-head b{font-family:var(--head);font-size:1.05rem}
+.ph-head .sub{font-size:.75rem;color:#bfe0da;display:block;line-height:1.1}
+.pill{border:0;border-radius:999px;padding:.25rem .65rem;font-size:.78rem;font-weight:700;background:#1b8a5a;color:#fff}
+.pill.off{background:var(--orange);color:var(--orange-ink)}
+.ico{background:rgba(255,255,255,.15);border:0;color:#fff;border-radius:10px;width:34px;height:34px;font-size:1rem}
+#screen{flex:1;overflow-y:auto;padding:.9rem .9rem 1.2rem;position:relative}
+.nav{display:flex;background:var(--card);border-top:1px solid var(--line)}
+.nav button{flex:1;background:none;border:0;padding:.55rem .2rem .6rem;color:var(--muted);font-size:.72rem;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:2px}
+.nav button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.nav button[aria-current=page]{color:var(--teal2);box-shadow:inset 0 3px 0 var(--orange)}
+.btn{background:var(--teal);color:#fff;border:0;border-radius:12px;padding:.7rem 1rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:.4rem;text-decoration:none;text-align:center}
+.btn.orange{background:var(--orange);color:var(--orange-ink)}
+.btn.ghost{background:transparent;color:var(--teal2);border:2px solid var(--teal2)}
+.btn.danger{background:var(--danger);color:#fff}
+@media (prefers-color-scheme:dark){.btn.danger{color:#1a0000}}
+.btn.sm{padding:.4rem .7rem;font-size:.85rem;border-radius:9px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.btn.block{width:100%}
+.row{display:flex;gap:.5rem;align-items:center}.row.sp{justify-content:space-between}.row.wrap{flex-wrap:wrap}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:.8rem .9rem;margin-bottom:.7rem}
+.card h4{margin-bottom:.3rem}
+.big{font-family:var(--head);font-size:1.9rem;font-weight:800;line-height:1}
+.lbl{font-size:.78rem;color:var(--muted)}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-bottom:.7rem}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:.55rem .6rem}
+.kpi b{display:block;font-family:var(--head);font-size:1.05rem}
+.kpi.g b{color:var(--ok)}.kpi.r b{color:var(--danger)}
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:.5rem;margin-bottom:.7rem}
+.tile{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:.7rem;text-align:left;color:var(--ink);min-height:68px}
+.tile b{display:block;font-family:var(--head)}
+.tile span{color:var(--teal2);font-weight:700}
+.tile:active{transform:scale(.98);border-color:var(--orange)}
+.seg{display:flex;background:var(--mint);border-radius:10px;padding:3px;margin-bottom:.7rem}
+.seg button{flex:1;border:0;background:none;padding:.4rem;border-radius:8px;font-weight:700;color:var(--muted);font-size:.85rem}
+.seg button[aria-pressed=true]{background:var(--card);color:var(--teal2);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+input,select,textarea{font:inherit;width:100%;padding:.6rem .7rem;border:2px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
+textarea{min-height:90px;resize:vertical}
+label{font-size:.82rem;font-weight:700;display:block;margin:.4rem 0 .2rem}
+.chips{display:flex;flex-wrap:wrap;gap:.35rem;margin:.3rem 0}
+.chip{border:1.5px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:.25rem .65rem;font-size:.8rem}
+.line{display:flex;justify-content:space-between;gap:.5rem;padding:.45rem 0;border-bottom:1px solid var(--line);font-size:.9rem}
+.line:last-child{border-bottom:0}
+.line .a{font-weight:800;white-space:nowrap}.a.in{color:var(--ok)}.a.outx{color:var(--danger)}
+.badge{font-size:.68rem;font-weight:800;border-radius:6px;padding:.05rem .35rem;margin-left:.3rem}
+.badge.p{background:var(--warnbg);color:var(--orange)}.badge.s{background:var(--okbg);color:var(--ok)}.badge.d{background:var(--mint);color:var(--teal2)}
+.toggle{display:flex;gap:.6rem;align-items:flex-start;padding:.55rem 0;border-bottom:1px solid var(--line)}
+.toggle:last-child{border-bottom:0}
+.sw{flex:none;width:46px;height:26px;border-radius:999px;background:var(--line);border:0;position:relative;transition:background .15s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .15s}
+.sw[aria-checked=true]{background:var(--teal2)}.sw[aria-checked=true]::after{transform:translateX(20px)}
+.check{display:flex;gap:.6rem;align-items:flex-start;padding:.5rem 0;border-bottom:1px solid var(--line);font-size:.9rem}
+.check:last-child{border-bottom:0}
+.dot{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:.8rem;font-weight:800;background:var(--line);color:var(--muted)}
+.dot.y{background:var(--ok);color:#fff}
+.bar{height:10px;background:var(--line);border-radius:6px;overflow:hidden}.bar i{display:block;height:100%;background:var(--orange)}
+.dial{position:relative;width:150px;height:150px;margin:0 auto .4rem}
+.dial svg{transform:rotate(-90deg)}.dial .c{position:absolute;inset:0;display:grid;place-content:center;text-align:center}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.code{word-break:break-all;font-size:.72rem;background:var(--mint);padding:.5rem;border-radius:8px}
+
+/* sheet + slip */
+.sheet-bg{position:absolute;inset:0;background:rgba(5,20,18,.6);display:flex;align-items:flex-end;z-index:10}
+.sheet{background:var(--paper);width:100%;max-height:92%;overflow:auto;border-radius:22px 22px 0 0;padding:1rem 1rem 1.2rem;animation:up .22s ease-out}
+@keyframes up{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.sheet{animation:none}html{scroll-behavior:auto}}
+.slip{background:var(--slip);color:var(--slipink);padding:1rem 1.1rem 1.2rem;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.85rem;position:relative;margin:.3rem 0 .8rem;border-radius:6px 6px 0 0;
+  background-image:linear-gradient(-45deg,transparent 8px,var(--slip) 0),linear-gradient(45deg,transparent 8px,var(--slip) 0);background-size:16px 16px;background-position:left bottom;background-repeat:repeat-x;
+  box-shadow:0 4px 14px rgba(0,0,0,.2);padding-bottom:1.8rem}
+.slip .h{text-align:center;font-weight:800;font-size:.95rem;text-transform:none}
+.slip hr{border:0;border-top:2px dashed #b8b8b8;margin:.5rem 0}
+.slip .t{display:flex;justify-content:space-between;font-size:1.15rem;font-weight:800}
+.slip .st{display:inline-block;border:2px solid #17794f;color:#17794f;border-radius:6px;padding:0 .4rem;font-weight:800;transform:rotate(-4deg);margin-top:.3rem}
+.qrbox{background:#fff;padding:10px;border-radius:12px;display:grid;place-items:center;margin:.6rem auto;width:fit-content;min-width:190px;min-height:190px}
+.toast{position:absolute;left:12px;right:12px;bottom:78px;background:var(--bezel);color:#fff;padding:.6rem .8rem;border-radius:12px;font-size:.85rem;z-index:20}
+.pinwrap{text-align:center;padding-top:.5rem}
+.dots{display:flex;gap:12px;justify-content:center;margin:1rem 0}
+.dots i{width:16px;height:16px;border-radius:50%;border:2px solid var(--teal2)}.dots i.f{background:var(--teal2)}
+.keys{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;max-width:280px;margin:0 auto}
+.keys button{padding:.9rem 0;font-size:1.3rem;font-weight:700;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.lowdata .heavy{display:none!important}
+
+/* guide + sections */
+.guide ol{padding-left:0;list-style:none;margin:0}
+.guide li{display:flex;gap:.6rem;padding:.55rem 0;border-bottom:1px solid var(--line)}
+.guide li:last-child{border:0}
+.guide .dot{margin-top:2px}
+section.blk{margin:2.2rem 0}
+table{width:100%;border-collapse:collapse;font-size:.9rem;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+th,td{text-align:left;padding:.6rem .7rem;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--mint);font-family:var(--head)}
+tr:last-child td{border-bottom:0}
+.tablewrap{overflow-x:auto}
+details{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:.7rem 1rem;margin-bottom:.6rem}
+summary{cursor:pointer;font-weight:700;font-family:var(--head)}
+details ol{margin:.6rem 0 0;padding-left:1.2rem}details li{margin:.3rem 0}
+.arch{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.6rem;align-items:stretch}
+.node{background:var(--card);border:2px solid var(--teal2);border-radius:14px;padding:.8rem}
+.node h4{color:var(--teal2)}
+.node ul{margin:.3rem 0 0;padding-left:1.1rem;font-size:.86rem}
+.wire{grid-column:1/-1;text-align:center;font-size:.85rem;color:var(--muted);padding:.1rem 0}
+.wire b{background:var(--warnbg);color:var(--orange);padding:.15rem .6rem;border-radius:999px}
+.lab{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:1rem;margin-bottom:1rem}
+.res{margin-top:.6rem;font-size:.88rem;padding:.6rem .8rem;border-radius:10px;background:var(--mint)}
+.res.bad{background:var(--dangerbg);color:var(--danger)}.res.ok{background:var(--okbg);color:var(--ok)}
+.logbox{max-height:240px;overflow:auto;font-size:.78rem}
+.logbox div{padding:.25rem 0;border-bottom:1px solid var(--line)}
+.kind{display:inline-block;min-width:64px;font-weight:800;color:var(--teal2)}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><i></i>Paylo</div>
+</header>
+
+<main>
+<!-- ============ PAYLO APP ============ -->
+<section id="v-app" class="view on">
+  <div class="applayout">
+    <div class="phone" id="phone" aria-label="Paylo app">
+      <div class="ph-head">
+        <div style="flex:1"><b id="hdrBiz">Paylo</b><span class="sub" id="hdrSub"></span></div>
+        <button class="pill" id="netpill" data-act="toggleOnline" title="Toggle offline mode to test the sync queue">Online</button>
+        <button class="ico" data-act="openSettings" aria-label="Settings">&#9881;</button>
+      </div>
+      <div id="screen"></div>
+      <nav class="nav" id="nav" aria-label="App sections"></nav>
+      <div id="overlay"></div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script>
+(()=>{
+'use strict';
+/* ================= CONFIG: paste your Supabase values (see SETUP.md) ================= */
+const CFG={url:'https://ycmyucezyaaoegqimtel.supabase.co',key:'sb_publishable_V2mJWlrPhOgYNwN9BR5Kqg_S2GDl0N-'}; 
+const DEMO={email:'demo@paylo-app.com',pass:'Paylo-Demo-2026'};
+/* ====================================================================================== */
+let sb=null;
+try{if(CFG.url&&CFG.key&&window.supabase)sb=window.supabase.createClient(CFG.url,CFG.key);}catch(e){sb=null}
+const ls={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
+/* ---------- helpers ---------- */
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const enc=new TextEncoder();
+const hex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+const R=n=>{const v=Math.round(n*100)/100;return (v<0?'-':'')+'R'+(Number.isInteger(v)?Math.abs(v).toLocaleString('en-ZA'):Math.abs(v).toFixed(2)).replace(/\u00a0/g,' ')};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const dayKey=ts=>new Date(ts).toDateString();
+const sum=a=>a.reduce((x,e)=>x+e.amount,0);
+const fmtDT=ts=>new Date(ts).toLocaleString('en-ZA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+const b64u=s=>btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const unb64u=s=>decodeURIComponent(escape(atob(s.replace(/-/g,'+').replace(/_/g,'/'))));
+const rnd=n=>hex(crypto.getRandomValues(new Uint8Array(n)));
+const mName={cash:'Cash',qr:'QR code',link:'Pay link'};
+
+/* ---------- i18n (draft translations, need native-speaker review) ---------- */
+const T={
+ en:{sell:'Sell',records:'Records',passport:'Passport',grow:'Grow',safe:'Safe',today:'Today',in:'Money in',out:'Money out',profit:'Profit',total:'Total',charge:'Charge',cash:'Cash',qr:'QR code',link:'Pay link',empty:'Tap an item to start a sale.'},
+ zu:{sell:'Thengisa',records:'Amarekhodi',passport:'Ipasipoti',grow:'Khula',safe:'Ukuphepha',today:'Namuhla',in:'Imali engenayo',out:'Imali ephumayo',profit:'Inzuzo',total:'Isamba',charge:'Khokhisa',cash:'Cash',qr:'Ikhodi ye-QR',link:'Isixhumanisi',empty:'Thinta into ukuze uqale ukuthengisa.'},
+ st:{sell:'Rekisa',records:'Direkhoto',passport:'Pasepoto',grow:'Hola',safe:'Polokeho',today:'Kajeno',in:'Chelete e kenang',out:'Chelete e tsoang',profit:'Phaello',total:'Kakaretso',charge:'Lefisa',cash:'Cash',qr:'Khoutu ya QR',link:'Link ya tefo',empty:'Tobetsa ntho ho qala thekiso.'}
+};
+
+/* ---------- state ---------- */
+const S={
+ lang:'en',lowData:false,online:true,tab:'till',grow:'fund',period:'7',
+ user:null,authMsg:'',locked:true,pinHash:null,pinSalt:null,pinBuf:'',pinMode:'create',pinTemp:'',pinMsg:'Create a 4-digit PIN for this phone',fails:0,lockUntil:0,
+ trader:{name:'Thandi Mokoena',biz:"Thandi's Kitchen & Airtime",place:'Orlando East, Soweto',bizId:'PL-'+Math.random().toString(36).slice(2,8).toUpperCase(),
+   idVerified:false,bizAccount:false,cipc:false,tax:false,permit:false,coa:false},
+ items:[{n:'Kota',p:35},{n:'Vetkoek & mince',p:20},{n:'Chips',p:25},{n:'Cool drink',p:15},{n:'Airtime R20',p:20},{n:'Bread roll',p:12}],
+ cart:[],ledger:[],seq:0,
+ consent:{lender:false,buyer:false,stats:false},
+ passCode:'',audit:[],queueN:0,
+ demo:{pin:false,cash:false,qr:false,offline:false,sync:false,pass:false,scam:false},
+ req:null,interest:{},scam:null
+};
+let KEY=null,idle=null;
+
+/* ---------- crypto ---------- */
+function cyrb(str){let h1=0xdeadbeef,h2=0x41c6ce57;for(let i=0;i<str.length;i++){const c=str.charCodeAt(i);h1=Math.imul(h1^c,2654435761);h2=Math.imul(h2^c,1597334677)}h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);return (h2>>>0).toString(16).padStart(8,'0')+(h1>>>0).toString(16).padStart(8,'0')}
+async function initKey(uid){try{
+  /* Prototype: a per-account key lets signatures verify on any device. Production: signing happens server-side with an HSM-held key. */
+  if(uid){const raw=await crypto.subtle.digest('SHA-256',enc.encode('paylo-signing-v1|'+uid));KEY=await crypto.subtle.importKey('raw',raw,{name:'HMAC',hash:'SHA-256'},false,['sign']);}
+  else KEY=await crypto.subtle.generateKey({name:'HMAC',hash:'SHA-256'},false,['sign']);
+}catch(e){KEY=null}}
+async function sign(str){ if(KEY){return hex(await crypto.subtle.sign('HMAC',KEY,enc.encode(str)));} return cyrb('k|'+str)+cyrb(str+'|k'); }
+async function hashPin(pin,salt){
+  try{const k=await crypto.subtle.importKey('raw',enc.encode(pin),'PBKDF2',false,['deriveBits']);
+  return hex(await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:150000,hash:'SHA-256'},k,256));}
+  catch(e){return cyrb(hex(salt)+pin)}
+}
+const canon=e=>[e.id,e.ts,e.type,e.amount,e.method,e.label,e.reverses||''].join('|');
+
+/* ---------- ledger ---------- */
+function mk(type,amount,method,label,ts,status){
+  return {id:'T'+rnd(4).toUpperCase(),ts:ts||Date.now(),type,amount,method,label,status:status||'synced',sig:''};
+}
+function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+async function genSample(){
+  const out=[];const r=rng(11);
+  const now=new Date();
+  for(let d=29;d>=0;d--){
+    const day=new Date(now.getFullYear(),now.getMonth(),now.getDate()-d);
+    if(d>0&&r()<0.14)continue;
+    const n=6+Math.floor(r()*7);
+    for(let i=0;i<n;i++){
+      const it=S.items[Math.floor(r()*S.items.length)];
+      const qty=1+Math.floor(r()*3);
+      const m=r();const method=m<.82?'cash':(m<.94?'qr':'link');
+      const ts=day.getTime()+(8+Math.floor(r()*10))*36e5+Math.floor(r()*36e5);
+      if(ts>Date.now())continue;
+      out.push(mk('sale',it.p*qty,method,qty+'× '+it.n,ts));
+    }
+    if(d%2===0){const ts=day.getTime()+7*36e5;if(ts<Date.now())out.push(mk('expense',400+Math.floor(r()*300),'cash',['Stock','Gas','Transport'][Math.floor(r()*3)],ts));}
+  }
+  for(const e of out)e.sig=await sign(canon(e));
+  return out;
+}
+
+/* ---------- data layer: Supabase when configured, memory otherwise ---------- */
+const live=()=>!!(sb&&S.user);
+function toRow(e){return {id:e.id,ts:e.ts,type:e.type,amount:e.amount,method:e.method,label:e.label,status:'synced',sig:e.sig,reverses:e.reverses||null};}
+async function dbInsert(list){
+  if(!live())return true;
+  try{for(let i=0;i<list.length;i+=100){
+    const {error}=await sb.from('ledger_entries').upsert(list.slice(i,i+100).map(toRow),{onConflict:'id',ignoreDuplicates:true});
+    if(error){console.warn(error);return false;}}
+    return true;}catch(e){return false;}
+}
+function saveQueue(){if(!S.user)return;ls.set('paylo_queue_'+S.user.id,JSON.stringify(S.ledger.filter(e=>e.status==='pending')));}
+async function addEntry(e){
+  S.ledger.push(e);
+  if(live()&&S.online){const ok=await dbInsert([e]);e.status=ok?'synced':'pending';}
+  saveQueue();
+}
+async function loadAll(){
+  const uid=S.user.id;let rows=[];
+  const r=await sb.from('ledger_entries').select('*').order('ts',{ascending:true}).range(0,4999);
+  if(!r.error&&r.data)rows=r.data.map(x=>({id:x.id,ts:Number(x.ts),type:x.type,amount:Number(x.amount),method:x.method,label:x.label,status:'synced',sig:x.sig,reverses:x.reverses||undefined}));
+  let q=[];try{q=JSON.parse(ls.get('paylo_queue_'+uid)||'[]')}catch(e){}
+  const have=new Set(rows.map(x=>x.id));
+  S.ledger=rows.concat(q.filter(x=>!have.has(x.id)));
+  const p=await sb.from('profiles').select('data').maybeSingle();
+  if(p.data&&p.data.data){const d=p.data.data;if(d.trader)Object.assign(S.trader,d.trader);if(d.consent)Object.assign(S.consent,d.consent);if(d.interest)S.interest=d.interest;}
+  const a=await sb.from('audit_log').select('ts,kind,msg').order('ts',{ascending:false}).limit(40);
+  if(a.data)S.audit=a.data.map(x=>({ts:Number(x.ts),kind:x.kind,msg:x.msg}));
+}
+async function saveProfile(){if(!live())return;try{await sb.from('profiles').upsert({user_id:S.user.id,data:{trader:S.trader,consent:S.consent,interest:S.interest}},{onConflict:'user_id'});}catch(e){}}
+function pinKeyName(){return 'paylo_pin_'+(S.user?S.user.id:'demo');}
+function loadPin(){let v=null;try{v=JSON.parse(ls.get(pinKeyName())||'null')}catch(e){}
+  if(v&&v.s&&v.h){S.pinSalt=new Uint8Array(v.s.match(/../g).map(h=>parseInt(h,16)));S.pinHash=v.h;}else{S.pinSalt=null;S.pinHash=null;}
+  S.pinMode=S.pinHash?'enter':'create';S.pinMsg=S.pinHash?'Enter your PIN':'Create a 4-digit PIN for this phone';S.pinBuf='';S.locked=true;}
+function savePin(){ls.set(pinKeyName(),JSON.stringify({s:hex(S.pinSalt),h:S.pinHash}));}
+async function startSession(user){
+  S.user=user;await initKey(user.id);S.trader.name=(user.email||'Trader').split('@')[0];
+  await loadAll();loadPin();S.authMsg='';
+  log('AUTH','signed in · session token issued by Supabase Auth · row-level security active');
+  render();renderLab();
+}
+
+/* ---------- metrics & score ---------- */
+function metrics(){
+  const now=Date.now(),from=now-30*864e5;
+  const L=S.ledger.filter(e=>e.ts>=from);
+  const sales=L.filter(e=>e.type==='sale'),exp=L.filter(e=>e.type==='expense');
+  const rev=sum(sales),cost=sum(exp),profit=rev-cost;
+  const days=new Set(sales.filter(e=>e.amount>0).map(e=>dayKey(e.ts))).size;
+  const dig=sum(sales.filter(e=>e.method!=='cash'));
+  const digShare=rev>0?dig/rev:0,margin=rev>0?profit/rev:0;
+  const first=S.ledger.length?Math.min(...S.ledger.map(e=>e.ts)):now;
+  const history=Math.max(0,Math.round((now-first)/864e5)+1);
+  const parts={Consistency:Math.min(30,days/28*30),Volume:Math.min(25,Math.max(0,rev)/20000*25),'Digital share':Math.min(20,digShare/0.5*20),Margin:Math.min(15,Math.max(0,margin)/0.4*15),History:Math.min(10,history/30*10)};
+  const score=Math.round(Object.values(parts).reduce((a,b)=>a+b,0));
+  const tier=score>=85?'Strong':score>=70?'Ready':score>=40?'Building':'Starting';
+  return {rev,cost,profit,days,dig,digShare,margin,history,parts,score,tier};
+}
+function bandR(x){const lo=Math.floor(Math.max(0,x)/2500)*2500;return 'R'+lo.toLocaleString('en-ZA').replace(/\u00a0/g,' ')+'–R'+(lo+2500).toLocaleString('en-ZA').replace(/\u00a0/g,' ');}
+function readiness(m){
+  const c=[
+   {ok:m.history>=28,t:'28+ days of records',d:m.history+' days so far'},
+   {ok:m.days>=20,t:'Traded on 20+ of the last 30 days',d:m.days+' days'},
+   {ok:m.digShare>=0.25,t:'25%+ of sales taken digitally',d:Math.round(m.digShare*100)+'% now. Take payments by QR or link.'},
+   {ok:m.profit>0,t:'Positive profit in the last 30 days',d:R(m.profit)},
+   {ok:S.trader.idVerified,t:'ID verified',d:'Do it in Grow → Make it official'},
+   {ok:S.trader.bizAccount,t:'Business account opened',d:'Do it in Grow → Make it official'}
+  ];
+  return {c,n:c.filter(x=>x.ok).length};
+}
+
+/* ---------- audit ---------- */
+function log(kind,msg){const ts=Date.now();S.audit.unshift({ts,kind,msg});S.audit=S.audit.slice(0,60);renderLab();
+  if(live()){try{sb.from('audit_log').insert({ts,kind,msg}).then(()=>{},()=>{});}catch(e){}}}
+
+/* ---------- ui bits ---------- */
+const t=k=>(T[S.lang]&&T[S.lang][k])||T.en[k]||k;
+const ICON={
+ till:'<path d="M4 7h16l-1.5 11a2 2 0 0 1-2 1.7H7.5a2 2 0 0 1-2-1.7L4 7z"/><path d="M8 7a4 4 0 0 1 8 0"/>',
+ records:'<path d="M5 4h14v16H5z"/><path d="M9 9h6M9 13h6M9 17h3"/>',
+ passport:'<rect x="5" y="3" width="14" height="18" rx="2"/><circle cx="12" cy="10" r="3"/><path d="M8.5 17h7"/>',
+ grow:'<path d="M4 18l6-6 4 4 6-8"/><path d="M15 8h5v5"/>',
+ safe:'<path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6z"/><path d="M9 12l2 2 4-4"/>'
+};
+function toast(msg){const p=$('#phone');const old=$('.toast',p);if(old)old.remove();const d=document.createElement('div');d.className='toast';d.setAttribute('role','status');d.textContent=msg;p.appendChild(d);setTimeout(()=>d.remove(),3200);}
+function openSheet(html){$('#overlay').innerHTML='<div class="sheet-bg" data-act="bgClose"><div class="sheet" role="dialog" aria-modal="true">'+html+'</div></div>';}
+function closeSheet(){$('#overlay').innerHTML='';S.req=null;}
+function markDemo(k){if(!S.demo[k]){S.demo[k]=true;renderGuide();}}
+function copy(txt){try{navigator.clipboard.writeText(txt).then(()=>toast('Copied'),()=>fb());}catch(e){fb()}
+  function fb(){const a=document.createElement('textarea');a.value=txt;document.body.appendChild(a);a.select();try{document.execCommand('copy');toast('Copied')}catch(e){toast('Select and copy the text manually')}a.remove();}}
+
+/* ---------- views ---------- */
+function renderHeader(){
+  $('#hdrBiz').textContent=S.trader.biz;
+  const pend=S.ledger.filter(e=>e.status==='pending').length;
+  $('#hdrSub').textContent=S.trader.place+(pend?' · '+pend+' waiting to sync':'')+(sb?'':' · demo mode');
+  const p=$('#netpill');p.textContent=S.online?'Online':'Offline';p.classList.toggle('off',!S.online);
+  $('#phone').classList.toggle('lowdata',S.lowData);
+}
+function renderNav(){
+  const tabs=[['till','sell'],['records','records'],['passport','passport'],['grow','grow'],['safe','safe']];
+  $('#nav').innerHTML=tabs.map(([k,l])=>`<button data-act="tab" data-k="${k}" ${S.tab===k?'aria-current="page"':''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>${t(l)}</button>`).join('');
+}
+function viewLock(){
+  const dots=[0,1,2,3].map(i=>`<i class="${i<S.pinBuf.length?'f':''}"></i>`).join('');
+  const locked=Date.now()<S.lockUntil;
+  const keys=['1','2','3','4','5','6','7','8','9','','0','⌫'].map(k=>k===''?'<span></span>':`<button data-act="pin" data-k="${k}" ${locked?'disabled':''} aria-label="${k==='⌫'?'Delete':k}">${k}</button>`).join('');
+  return `<div class="pinwrap"><h3 style="margin-top:.8rem">${esc(S.trader.biz)}</h3><p class="small" id="pinMsg">${locked?'Too many tries. Wait 30 seconds.':esc(S.pinMsg)}</p><div class="dots" aria-label="PIN entry">${dots}</div><div class="keys">${keys}</div>
+  <p class="small" style="margin-top:1rem">${S.pinHash?'':'Demo tip: choose any 4 digits. The PIN never leaves this page.'}</p></div>`;
+}
+function viewAuth(){
+  return `<div class="pinwrap" style="text-align:left"><h3 style="text-align:center;margin-top:.6rem;font-size:1.6rem">Paylo</h3><p class="small" style="text-align:center">Every payment builds your proof.</p>
+  <div class="card"><label for="em">Email</label><input id="em" type="email" autocomplete="username" inputmode="email"><label for="pw">Password (6+ characters)</label><input id="pw" type="password" autocomplete="current-password">
+  <p class="small" id="authMsg" role="status">${esc(S.authMsg)}</p>
+  <button class="btn block" data-act="signIn">Sign in</button><button class="btn block ghost" style="margin-top:.5rem" data-act="signUp">Create account</button></div>
+  <div class="card" style="background:var(--warnbg)"><b>Judges and demo</b><p class="small" style="margin:.2rem 0 .5rem">Tap to fill the demo login, then Sign in. You will then set a 4-digit PIN for this device.</p><button class="btn sm orange" data-act="demoFill">Use demo account</button></div></div>`;
+}
+function viewTill(){
+  const td=S.ledger.filter(e=>dayKey(e.ts)===new Date().toDateString());
+  const inn=sum(td.filter(e=>e.type==='sale')),out=sum(td.filter(e=>e.type==='expense'));
+  const total=S.cart.reduce((a,c)=>a+c.p*c.q,0);
+  const cartHtml=S.cart.length?S.cart.map((c,i)=>`<div class="line"><span>${esc(c.n)}</span><span class="row"><button class="chip" data-act="dec" data-i="${i}" aria-label="Remove one ${esc(c.n)}">−</button><b>${c.q}</b><button class="chip" data-act="inc" data-i="${i}" aria-label="Add one ${esc(c.n)}">+</button><span class="a" style="min-width:56px;text-align:right">${R(c.p*c.q)}</span></span></div>`).join(''):`<p class="small" style="margin:.2rem 0">${t('empty')}</p>`;
+  const dis=(!S.cart.length)?'disabled':'';
+  const dd=(!S.cart.length||!S.online)?'disabled':'';
+  const empty=S.ledger.length===0?`<div class="card" style="background:var(--warnbg)"><h4>New here?</h4><p class="small">Load Thandi's sample month to see the Passport and funding check, or just start selling.</p><button class="btn sm orange" data-act="loadSample">Load sample month</button></div>`:'';
+  return empty+`<div class="kpis"><div class="kpi g"><span class="lbl">${t('in')}</span><b>${R(inn)}</b></div><div class="kpi r"><span class="lbl">${t('out')}</span><b>${R(out)}</b></div><div class="kpi"><span class="lbl">${t('today')}</span><b>${td.length}</b></div></div>
+  <div class="tiles">${S.items.map((it,i)=>`<button class="tile" data-act="add" data-i="${i}"><b>${esc(it.n)}</b><span>${R(it.p)}</span></button>`).join('')}</div>
+  <div class="row" style="margin-bottom:.7rem"><input id="custom" inputmode="decimal" placeholder="Other amount (R)" aria-label="Other amount"><button class="btn sm" data-act="addCustom">Add</button></div>
+  <div class="card"><div class="row sp"><h4>Current sale</h4>${S.cart.length?'<button class="chip" data-act="clearCart">Clear</button>':''}</div>${cartHtml}
+    <div class="row sp" style="margin-top:.5rem"><span>${t('total')}</span><span class="big">${R(total)}</span></div>
+    <div class="row" style="margin-top:.7rem"><button class="btn orange" style="flex:1" data-act="charge" data-m="cash" ${dis}>${t('cash')}</button><button class="btn" style="flex:1" data-act="charge" data-m="qr" ${dd}>${t('qr')}</button><button class="btn ghost" style="flex:1" data-act="charge" data-m="link" ${dd}>${t('link')}</button></div>
+    ${!S.online?'<p class="small" style="margin:.5rem 0 0">Offline: cash sales are saved on this phone and sync later. Digital payments need signal for FNB to confirm them.</p>':''}
+  </div>`;
+}
+function inPeriod(e){const n=Date.now();return S.period==='1'?dayKey(e.ts)===new Date().toDateString():e.ts>=n-Number(S.period)*864e5;}
+function viewRecords(){
+  const L=S.ledger.filter(inPeriod).sort((a,b)=>b.ts-a.ts);
+  const inn=sum(L.filter(e=>e.type==='sale')),out=sum(L.filter(e=>e.type==='expense')),pr=inn-out;
+  // 14-day chart
+  let chart='';
+  const days=[];for(let d=13;d>=0;d--){const dt=new Date();dt.setDate(dt.getDate()-d);const k=dt.toDateString();days.push({k,v:sum(S.ledger.filter(e=>e.type==='sale'&&dayKey(e.ts)===k))});}
+  const mx=Math.max(1,...days.map(x=>x.v));
+  chart=`<div class="card heavy"><h4>Sales, last 14 days</h4><svg viewBox="0 0 280 90" width="100%" role="img" aria-label="Bar chart of daily sales for the last 14 days">${days.map((x,i)=>`<rect x="${i*20+3}" y="${80-(x.v/mx)*70}" width="14" height="${(x.v/mx)*70}" rx="3" fill="${i===13?'var(--orange)':'var(--teal2)'}"/>`).join('')}<line x1="0" y1="80.5" x2="280" y2="80.5" stroke="var(--line)"/></svg></div>`;
+  const rows=L.slice(0,25).map(e=>{
+    const sale=e.type==='sale';
+    return `<div class="line"><span>${esc(e.label)}${S.ledger.some(x=>x.reverses===e.id)?' <span class="badge p">reversed</span>':''}<br><span class="lbl">${fmtDT(e.ts)} · ${mName[e.method]||e.method}<span class="badge ${e.status==='synced'?'s':'p'}">${e.status}</span>${e.method!=='cash'?'<span class="badge d">verified by rails</span>':''}</span></span>
+    <span style="text-align:right"><span class="a ${sale?'in':'outx'}">${sale?'+':'−'}${R(Math.abs(e.amount))}</span>${(!S.ledger.some(x=>x.reverses===e.id)&&e.amount>0&&e.method==='cash'&&!e.reverses)?`<br><button class="chip" data-act="reverse" data-id="${e.id}">Reverse</button>`:''}</span></div>`}).join('')||'<p class="small">No entries in this period.</p>';
+  return `<div class="seg" role="group" aria-label="Period">${[['1','Today'],['7','7 days'],['30','30 days']].map(([k,l])=>`<button aria-pressed="${S.period===k}" data-act="period" data-k="${k}">${l}</button>`).join('')}</div>
+  <div class="kpis"><div class="kpi g"><span class="lbl">${t('in')}</span><b>${R(inn)}</b></div><div class="kpi r"><span class="lbl">${t('out')}</span><b>${R(out)}</b></div><div class="kpi ${pr>=0?'g':'r'}"><span class="lbl">${t('profit')}</span><b>${R(pr)}</b></div></div>
+  ${chart}
+  <div class="card"><h4>Add an expense</h4><div class="chips">${['Stock','Gas','Transport','Data','Rent'].map(c=>`<button class="chip" data-act="expChip" data-k="${c}">${c}</button>`).join('')}</div>
+   <div class="row"><input id="expAmt" inputmode="decimal" placeholder="Amount (R)" aria-label="Expense amount"><input id="expLbl" placeholder="What for" aria-label="Expense label"></div>
+   <button class="btn block" style="margin-top:.5rem" data-act="addExp">Save expense</button></div>
+  <div class="card"><h4>Entries</h4><p class="small">Entries are signed and can't be edited. Fix a mistake with Reverse.</p>${rows}</div>`;
+}
+function viewPassport(){
+  const m=metrics();const C=2*Math.PI*60;
+  const parts=Object.entries(m.parts);const max={Consistency:30,Volume:25,'Digital share':20,Margin:15,History:10};
+  const tog=(k,title,desc)=>`<div class="toggle"><button class="sw" role="switch" aria-checked="${S.consent[k]}" aria-label="${title}" data-act="consent" data-k="${k}"></button><div><b>${title}</b><br><span class="small">${desc}</span></div></div>`;
+  return `<div class="card" style="text-align:center"><div class="dial"><svg width="150" height="150" viewBox="0 0 150 150" aria-hidden="true"><circle cx="75" cy="75" r="60" fill="none" stroke="var(--line)" stroke-width="12"/><circle cx="75" cy="75" r="60" fill="none" stroke="var(--orange)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-m.score/100)}"/></svg><div class="c"><span class="big">${m.score}</span><span class="lbl">of 100</span></div></div>
+   <h3 style="margin:0">${m.tier}</h3><p class="small">${esc(S.trader.biz)}<br>Passport ID ${S.trader.bizId}</p></div>
+  <div class="card"><h4>Last 30 days</h4>
+   <div class="line"><span>Days traded</span><b>${m.days} of 30</b></div>
+   <div class="line"><span>Income range</span><b>${bandR(m.rev)}</b></div>
+   <div class="line"><span>Taken digitally</span><b>${Math.round(m.digShare*100)}%</b></div>
+   <div class="line"><span>Profit margin</span><b>${Math.round(m.margin*100)}%</b></div>
+   <div class="line"><span>Records kept</span><b>${m.history} days</b></div></div>
+  <div class="card"><h4>How the score builds</h4>${parts.map(([k,v])=>`<div style="margin:.4rem 0"><div class="row sp"><span class="small">${k}</span><span class="small">${Math.round(v)} / ${max[k]}</span></div><div class="bar"><i style="width:${v/max[k]*100}%"></i></div></div>`).join('')}
+   <p class="small">Tip: digital payments count for more than cash because the payment rails confirm them.</p></div>
+  <div class="card"><h4>Who can see it</h4><p class="small">Shared: ranges and totals only. Never shared: customer names, phone numbers or individual sales.</p>
+   ${tog('lender','FNB funding pre-check','FNB can see your signed Passport to check what you may qualify for.')}
+   ${tog('buyer','Verified buyers and suppliers','Approved buyers can see your Passport when you apply to their opportunities.')}
+   ${tog('stats','Anonymous app statistics','Helps improve Paylo. Contains no business or personal details.')}</div>
+  <div class="card"><h4>Signed Passport</h4><p class="small">Creates a code that can't be edited without being detected. Verify it in the Security tab.</p>
+   <button class="btn block" data-act="genPass">${S.passCode?'Create a fresh Passport':'Create signed Passport'}</button>
+   ${S.passCode?`<div class="code mono" style="margin-top:.6rem">${S.passCode}</div><div class="row" style="margin-top:.5rem"><button class="btn sm ghost" data-act="copyPass">Copy code</button></div><div id="passQR" class="qrbox heavy"></div>`:''}</div>`;
+}
+function viewGrow(){
+  const sub=`<div class="seg" role="group" aria-label="Grow sections">${[['fund','Funding'],['official','Make it official'],['market','Markets']].map(([k,l])=>`<button aria-pressed="${S.grow===k}" data-act="growTab" data-k="${k}">${l}</button>`).join('')}</div>`;
+  const m=metrics();
+  if(S.grow==='fund'){
+    const r=readiness(m);const pct=Math.round(r.n/r.c.length*100);
+    const offer=Math.min(20000,Math.max(1000,Math.round(Math.max(0,m.profit)*2/100)*100));
+    return sub+`<div class="card"><div class="row sp"><h4>Funding readiness</h4><b>${pct}%</b></div><div class="bar" style="margin:.3rem 0 .6rem"><i style="width:${pct}%"></i></div>
+     ${r.c.map(x=>`<div class="check"><span class="dot ${x.ok?'y':''}">${x.ok?'✓':''}</span><span><b>${x.t}</b><br><span class="small">${esc(x.d)}</span></span></div>`).join('')}</div>
+     <div class="card">${r.n===r.c.length?`<h4>Indicative starter facility</h4><div class="big" style="margin:.3rem 0">up to ${R(offer)}</div><p class="small">Based on about two months of your recent profit. This is a guide, not an approval. FNB's credit policy decides.</p>
+      <button class="btn orange block" data-act="precheck" ${S.interest.fnb?'disabled':''}>${S.interest.fnb?'Pre-check requested':'Ask FNB for a pre-check'}</button>`:`<h4>Almost there</h4><p class="small">Complete the ${r.c.length-r.n} remaining item${r.c.length-r.n>1?'s':''} above to see your indicative starter facility.</p>`}</div>`;
+  }
+  if(S.grow==='official'){
+    const tr=S.trader;
+    const st=(k,t1,d,need)=>`<div class="check"><span class="dot ${tr[k]?'y':''}">${tr[k]?'✓':''}</span><span style="flex:1"><b>${t1}</b><br><span class="small">${d}</span></span>${tr[k]?'':`<button class="btn sm" data-act="step" data-k="${k}" ${need&&!tr[need]?'disabled':''}>Start</button>`}</span></div>`;
+    return sub+`<div class="card"><h4>Make it official</h4><p class="small">Typical steps for a food trader. Requirements vary by municipality; a live version would pull current rules from FNB and partners. Each Start button is simulated here.</p>
+     ${st('idVerified','Verify your ID','Selfie and ID check through FNB.')}
+     ${st('bizAccount','Open a business account','Keeps business and personal money apart.','idVerified')}
+     ${st('cipc','Register your business (CIPC)','Needed by many buyers and tenders.')}
+     ${st('tax','Get a tax number (SARS)','Needed once you pass the tax threshold and for tenders.')}
+     ${st('permit','Municipal trading permit','Lets you trade legally at your spot.')}
+     ${st('coa','Food Certificate of Acceptability','Needed to sell prepared food.')}</div>`;
+  }
+  const opps=[
+   {id:'o1',t:'School feeding supplier pool',d:'Local schools buy from registered food traders.',reg:true,s:60},
+   {id:'o2',t:'Township bulk-buy group',d:'Pool orders for drinks and maize meal to cut stock costs.',reg:false,s:40},
+   {id:'o3',t:'Weekend events caterer list',d:'Event organisers book traders with a verified track record.',reg:false,s:50},
+   {id:'o4',t:'Municipal supplier database help',d:'Guided sign-up for municipal small-supplier lists.',reg:true,s:65}
+  ];
+  return sub+`<div class="card"><h4>Markets</h4><p class="small">Sample listings for the prototype. Applying shares your Passport only if you switched on "Verified buyers and suppliers".</p></div>`+opps.map(o=>{
+    const ok=m.score>=o.s&&(!o.reg||S.trader.cipc);
+    const why=[];if(m.score<o.s)why.push('needs Passport score '+o.s);if(o.reg&&!S.trader.cipc)why.push('needs CIPC registration');
+    return `<div class="card"><div class="row sp"><h4>${o.t}</h4><span class="tag ${ok?'ok':'warn'}">${ok?'You match':'Not yet'}</span></div><p class="small">${o.d}</p>${ok?'':`<p class="small"><b>To match:</b> ${why.join(' and ')}.</p>`}
+     <button class="btn sm ${S.interest[o.id]?'ghost':''}" data-act="apply" data-id="${o.id}" ${(!ok||S.interest[o.id])?'disabled':''}>${S.interest[o.id]?'Interest sent':'Share Passport and apply'}</button></div>`}).join('');
+}
+const SCAM_SAMPLES=[
+ 'Hi bru I sent R500 by mistake instead of R50, please send back R450 urgent. Proof attached.',
+ 'Payment pending, will reflect in 24 hours. Give me the food now, see screenshot of proof of payment.',
+ 'Congratulations! You won a R10,000 SASSA grant. Pay R150 processing fee at www.grant-claim.example now.',
+ 'Hi, this is FNB. Your account is blocked. Reply with your OTP and PIN to unlock.'
+];
+function viewSafe(){
+  const s=S.scam;
+  const res=s?`<div class="res ${s.score>=65?'bad':s.score>=35?'':'ok'}" style="${s.score>=35&&s.score<65?'background:var(--warnbg)':''}"><b>${s.score>=65?'Likely a scam. Do not proceed.':s.score>=35?'Be careful.':'No clear red flags.'}</b> (risk ${s.score}/100)<ul style="margin:.4rem 0 0;padding-left:1.1rem">${s.hits.map(h=>`<li>${h}</li>`).join('')||'<li>Still, only trust the green confirmation in the app.</li>'}</ul></div>${s.score>=35?'<button class="btn sm danger" style="margin-top:.5rem" data-act="report">Report to FNB fraud team</button>':''}`:'';
+  return `<div class="card" style="background:var(--okbg)"><h4>The 3-step payment check</h4><ol style="padding-left:1.2rem;margin:.3rem 0">
+   <li>Wait for the <b>green confirmation</b> in Paylo.</li><li>Check the <b>amount and reference</b> match.</li><li>Only then hand over the goods.</li></ol><p class="small">A screenshot is not proof. A message saying "pending" is not proof.</p></div>
+  <div class="card"><h4>Scam Shield</h4><p class="small">Paste a message a customer or stranger sent you. Checked on your phone, nothing is uploaded.</p>
+   <textarea id="scamtxt" placeholder="Paste a message here" aria-label="Message to check"></textarea>
+   <div class="chips">${SCAM_SAMPLES.map((_,i)=>`<button class="chip" data-act="scamSample" data-i="${i}">Example ${i+1}</button>`).join('')}</div>
+   <button class="btn block" data-act="scamCheck">Check message</button>${res}</div>
+  <div class="card"><h4>Never share</h4><ul style="padding-left:1.1rem;margin:.3rem 0" class="small"><li>Your Paylo or banking PIN</li><li>One-time PINs (OTPs) sent to your phone</li><li>Your phone to a stranger "to confirm a payment"</li></ul></div>`;
+}
+const SCAM_RULES=[
+ [/(otp|one.?time|pin|password|cvv)/i,40,'Asks for a PIN, OTP or password. No bank or real customer needs these.'],
+ [/(sent (too much|by mistake)|overpaid|send back|refund me|reverse)/i,35,'"Send back the difference" is the classic overpayment trick.'],
+ [/(pending|will reflect|reflect in|processing|on hold|release)/i,25,'Claims payment is "pending" but wants goods now. Wait for the green tick.'],
+ [/(screenshot|proof of payment|\bpop\b|attached)/i,25,'Proof-of-payment images are easy to fake. Trust only the app confirmation.'],
+ [/(urgent|immediately|right now|hurry|quick|last chance)/i,15,'Pressure to act fast.'],
+ [/(https?:\/\/|www\.|bit\.ly|tinyurl)/i,25,'Contains a link. Never log in or pay through a link sent in a message.'],
+ [/(won|winner|prize|grant|sassa|loan approved|processing fee|upfront fee|admin fee)/i,35,'A prize, grant or loan that asks for a fee first is advance-fee fraud.'],
+ [/(your account (is )?(blocked|suspended|locked)|verify your account)/i,30,'Pretends to be your bank and threatens to block your account.']
+];
+
+/* ---------- main render ---------- */
+function render(){
+  const el=$('#screen'),st=el.scrollTop;
+  renderHeader();
+  if(sb&&!S.user){el.innerHTML=viewAuth();$('#nav').style.display='none';return;}
+  if(S.locked){el.innerHTML=viewLock();$('#nav').style.display='none';return;}
+  $('#nav').style.display='flex';renderNav();
+  el.innerHTML=({till:viewTill,records:viewRecords,passport:viewPassport,grow:viewGrow,safe:viewSafe})[S.tab]();
+  el.scrollTop=st;
+  if(S.tab==='passport'&&S.passCode)drawQR('#passQR','https://verify.paylo.example/p/'+S.passCode.slice(0,60),150);
+  renderGuide();
+}
+function drawQR(sel,text,size){const el=$(sel);if(!el||S.lowData)return;el.innerHTML='';
+  try{new QRCode(el,{text,width:size,height:size,colorDark:'#10302b',colorLight:'#ffffff'});}catch(e){el.innerHTML='<span class="small" style="color:#333">QR unavailable offline. Use the link.</span>'}}
+const GUIDE=[
+ ['pin','Create a PIN to unlock the app'],['cash','Sell two items for cash on Sell'],['qr','Take a QR or pay-link payment and simulate the customer paying'],
+ ['offline','Tap Online to go Offline, then make a cash sale'],['sync','Tap Offline to reconnect and watch the queue sync'],
+ ['pass','Create a signed Passport in the app'],['scam','Paste an example message into Scam Shield']];
+function renderGuide(){const el=$('#guide');if(!el)return;el.innerHTML=GUIDE.map(([k,l])=>`<li><span class="dot ${S.demo[k]?'y':''}">${S.demo[k]?'✓':''}</span><span>${l}</span></li>`).join('');}
+
+/* ---------- lab (security tab) ---------- */
+function renderLab(){
+  const lg=$('#labLog');if(lg)lg.innerHTML=S.audit.length?S.audit.slice(0,14).map(a=>`<div><span class="kind mono">${a.kind}</span> <span class="small">${new Date(a.ts).toLocaleTimeString('en-ZA')}</span> ${esc(a.msg)}</div>`).join(''):'<div>No activity yet.</div>';
+  const p=$('#labPin');if(p&&S.pinHash)p.innerHTML=`Stored: <span class="mono">PBKDF2-SHA256 · 150,000 rounds</span><br>Salt (random per device): <span class="mono">${hex(S.pinSalt)}</span><br>Hash: <span class="mono">${S.pinHash.slice(0,24)}…</span><br>The PIN itself is never stored. After 3 wrong tries the app locks for 30 seconds.`;
+  const c=$('#labCode');if(c&&S.passCode&&!c.value)c.value=S.passCode;
+}
+async function verifyPassCode(code){
+  try{const [v,body,sig]=code.trim().split('.');if(v!=='PL1'||!body||!sig)return {ok:false,why:'Not a Paylo Passport code.'};
+   const good=(await sign(body)).slice(0,24);
+   if(good!==sig)return {ok:false,why:'Signature does not match. The Passport was changed after it was issued, so FNB would reject it.'};
+   const p=JSON.parse(unb64u(body));if(Date.now()>p.exp)return {ok:false,why:'Passport has expired.'};
+   return {ok:true,p};}catch(e){return {ok:false,why:'Could not read that code.'}}
+}
+
+/* ---------- actions ---------- */
+const A={
+ tab(a){S.tab=a.dataset.k;$('#screen').scrollTop=0;render();if(S.tab==='safe'){}},
+ add(a){const it=S.items[+a.dataset.i];const c=S.cart.find(x=>x.n===it.n);c?c.q++:S.cart.push({n:it.n,p:it.p,q:1});render();},
+ inc(a){S.cart[+a.dataset.i].q++;render();},
+ dec(a){const c=S.cart[+a.dataset.i];c.q--;if(c.q<=0)S.cart.splice(+a.dataset.i,1);render();},
+ clearCart(){S.cart=[];render();},
+ addCustom(){const v=parseFloat(($('#custom').value||'').replace(',','.'));if(!(v>0&&v<100000)){toast('Enter an amount above R0');return;}
+   const c=S.cart.find(x=>x.n==='Other'&&x.p===v);c?c.q++:S.cart.push({n:'Other',p:v,q:1});render();},
+ async charge(a){
+   const m=a.dataset.m,total=S.cart.reduce((x,c)=>x+c.p*c.q,0);if(!total)return;
+   const label=S.cart.map(c=>c.q+'× '+c.n).join(', ');
+   if(m==='cash'){
+     const e=mk('sale',total,'cash',label,Date.now(),S.online?'synced':'pending');e.sig=await sign(canon(e));await addEntry(e);S.cart=[];
+     log('SALE',`${e.id} ${R(total)} cash · signed (HMAC-SHA256) · ${e.status}`);markDemo('cash');if(!S.online)markDemo('offline');
+     render();openSheet(slipSheet(e));return;
+   }
+   if(!S.online){toast('Digital payments need signal');return;}
+   const rid='PR'+rnd(3).toUpperCase();const ref=rid;
+   const payload={rid,amt:total,ref,exp:Date.now()+10*6e4};const body=b64u(JSON.stringify(payload));const sg=(await sign(body)).slice(0,16);
+   const link='https://pay.paylo.example/p/'+body+'.'+sg;
+   S.req={rid,total,label,m,link,done:false};
+   log('PAYREQ',`${rid} ${R(total)} ${m} · signed token, expires 10 min · idempotency key ${rnd(4)}`);
+   openSheet(paySheet());if(m==='qr')drawQR('#reqQR',link,170);
+ },
+ async simPay(){
+   if(!S.req||S.req.done)return;S.req.done=true;const r=S.req;
+   $('#payState').innerHTML='<span class="tag warn">Waiting for FNB…</span>';
+   setTimeout(async()=>{
+     const e=mk('sale',r.total,r.m,r.label,Date.now(),'synced');e.sig=await sign(canon(e));await addEntry(e);S.cart=[];
+     log('WEBHOOK',`${r.rid} paid ${R(r.total)} · signature verified · replay window ok · ledger entry ${e.id} written by server`);
+     markDemo('qr');render();openSheet(slipSheet(e,true));S.req=null;
+   },900);
+ },
+ bgClose(a,ev){if(ev.target===a)closeSheet();},
+ closeSheet(){closeSheet();},
+ period(a){S.period=a.dataset.k;render();},
+ expChip(a){$('#expLbl').value=a.dataset.k;},
+ async addExp(){const v=parseFloat(($('#expAmt').value||'').replace(',','.'));const l=($('#expLbl').value||'Expense').trim().slice(0,40);
+   if(!(v>0)){toast('Enter the amount spent');return;}
+   const e=mk('expense',v,'cash',l,Date.now(),S.online?'synced':'pending');e.sig=await sign(canon(e));await addEntry(e);log('EXPENSE',`${e.id} ${R(v)} ${l} · signed`);render();toast('Expense saved');},
+ async reverse(a){const o=S.ledger.find(e=>e.id===a.dataset.id);if(!o||S.ledger.some(x=>x.reverses===o.id))return;
+   const e=mk('sale',-o.amount,o.method,'Reversal of '+o.id,Date.now(),S.online?'synced':'pending');e.reverses=o.id;e.sig=await sign(canon(e));await addEntry(e);
+   log('REVERSE',`${o.id} reversed by ${e.id} · original untouched`);render();toast('Reversed. The original entry is kept.');},
+ consent(a){const k=a.dataset.k;S.consent[k]=!S.consent[k];log('CONSENT',`${k} ${S.consent[k]?'ON':'OFF'} · consent v1.0 · revocable`);saveProfile();render();},
+ async genPass(){
+   const m=metrics();const p={v:1,biz:S.trader.bizId,iss:Date.now(),exp:Date.now()+30*864e5,score:m.score,tier:m.tier,days:m.days,rev:bandR(m.rev),dig:Math.round(m.digShare*100),mar:Math.round(m.margin*100)};
+   const body=b64u(JSON.stringify(p));S.passCode='PL1.'+body+'.'+(await sign(body)).slice(0,24);
+   log('PASSPORT',`issued · score ${m.score} · aggregates only · valid 30 days`);markDemo('pass');render();renderLab();$('#labCode').value=S.passCode;},
+ copyPass(){copy(S.passCode);},
+ growTab(a){S.grow=a.dataset.k;render();},
+ step(a){const k=a.dataset.k;S.trader[k]=true;log('KYC',`${k} completed (simulated)`);toast('Done (simulated)');saveProfile();render();},
+ precheck(){if(!S.consent.lender){toast('Switch on "FNB funding pre-check" in Passport first');S.tab='passport';render();return;}
+   S.interest.fnb=true;saveProfile();log('SHARE',`Passport shared with FNB · scoped token · expires 30 days · ref FP-${rnd(3).toUpperCase()}`);render();toast('Request sent to FNB');},
+ apply(a){if(!S.consent.buyer){toast('Switch on "Verified buyers and suppliers" in Passport first');S.tab='passport';render();return;}
+   S.interest[a.dataset.id]=true;saveProfile();log('SHARE',`Passport shared with buyer ${a.dataset.id} · scoped token · revocable`);render();toast('Application sent');},
+ scamSample(a){$('#scamtxt').value=SCAM_SAMPLES[+a.dataset.i];},
+ scamCheck(){const txt=$('#scamtxt').value.trim();if(!txt){toast('Paste a message first');return;}
+   let score=0;const hits=[];for(const [re,w,msg] of SCAM_RULES){if(re.test(txt)){score+=w;hits.push(msg);}}score=Math.min(100,score);S.scam={score,hits};markDemo('scam');render();$('#scamtxt').value=txt;},
+ report(){log('REPORT','Suspicious message reported to FNB fraud team (simulated)');toast('Reported. Thank you.');},
+ toggleOnline(){S.online=!S.online;
+   if(!S.online){log('NET','offline · new cash sales will queue on the device');renderHeader();render();return;}
+   doSync();},
+ openSettings(){openSheet(`<h3>Settings</h3>
+   <label>Language (draft translations)</label><div class="seg" role="group">${[['en','English'],['zu','isiZulu'],['st','Sesotho']].map(([k,l])=>`<button aria-pressed="${S.lang===k}" data-act="lang" data-k="${k}">${l}</button>`).join('')}</div>
+   <div class="toggle"><button class="sw" role="switch" aria-checked="${S.lowData}" aria-label="Low-data mode" data-act="lowData"></button><div><b>Low-data mode</b><br><span class="small">Hides charts and QR images. Syncs in small compact batches.</span></div></div>
+   <div class="row wrap" style="margin-top:.8rem"><button class="btn sm" data-act="lockNow">Lock now</button>${live()?'<button class="btn sm ghost" data-act="loadSample">Load sample month</button><button class="btn sm ghost" data-act="signOut">Sign out</button>':'<button class="btn sm ghost" data-act="resetDemo">Reset demo data</button>'}<button class="btn sm danger" data-act="deleteAll">Delete all my data</button></div>
+   <p class="small">${live()?'Signed in as '+esc(S.user.email||'')+'. Data is saved to the database.':(sb?'':'Demo mode: no database is connected, so data is kept in memory only.')}</p>
+   <p class="small">Delete removes your records and consents from this device, and in production would trigger erasure on the server (POPIA right to deletion).</p>
+   <button class="btn block ghost" style="margin-top:.5rem" data-act="closeSheet">Close</button>`);},
+ lang(a){S.lang=a.dataset.k;closeSheet();render();},
+ lowData(){S.lowData=!S.lowData;closeSheet();render();},
+ lockNow(){lock();},
+ async resetDemo(){closeSheet();S.cart=[];S.passCode='';S.interest={};S.consent={lender:false,buyer:false,stats:false};S.ledger=await genSample();log('RESET','demo data reloaded');render();toast('Demo data reloaded');},
+ async deleteAll(){closeSheet();
+   if(live()){try{const {error}=await sb.rpc('erase_my_data');if(error){toast('Could not erase: '+error.message);return;}}catch(e){toast('Could not erase right now');return;}ls.del('paylo_queue_'+S.user.id);}
+   S.ledger=[];S.cart=[];S.passCode='';S.interest={};S.consent={lender:false,buyer:false,stats:false};S.audit=[];log('ERASE','all records and consents deleted on request (POPIA right to erasure)');render();toast('All data deleted');},
+ async loadSample(){closeSheet();toast('Loading sample month…');const arr=await genSample();S.ledger=S.ledger.concat(arr);const ok=await dbInsert(arr);if(!ok){arr.forEach(e=>e.status='pending');saveQueue();}
+   log('SEED',`${arr.length} sample entries loaded${live()?' to database':''}`);render();toast(ok?'Sample month loaded':'Saved on device, will sync later');},
+ async signIn(){const email=($('#em').value||'').trim(),pw=$('#pw').value||'';if(!email||!pw){S.authMsg='Enter your email and password.';render();return;}
+   $('#authMsg').textContent='Signing in…';
+   const {data,error}=await sb.auth.signInWithPassword({email,password:pw});
+   if(error){S.authMsg=error.message;render();return;}
+   await startSession(data.user);},
+ async signUp(){const email=($('#em').value||'').trim(),pw=$('#pw').value||'';if(!email||pw.length<6){S.authMsg='Enter an email and a password of 6+ characters.';render();return;}
+   $('#authMsg').textContent='Creating account…';
+   const {data,error}=await sb.auth.signUp({email,password:pw});
+   if(error){S.authMsg=error.message;render();return;}
+   if(data.session){await startSession(data.user);}else{S.authMsg='Account created. Check your email to confirm, then sign in.';render();}},
+ demoFill(){$('#em').value=DEMO.email;$('#pw').value=DEMO.pass;},
+ async signOut(){closeSheet();try{await sb.auth.signOut();}catch(e){}S.user=null;S.ledger=[];S.cart=[];S.passCode='';S.audit=[];S.pinHash=null;S.pinSalt=null;S.interest={};S.consent={lender:false,buyer:false,stats:false};S.locked=true;S.authMsg='Signed out.';clearTimeout(idle);render();renderLab();},
+ pin(a){pinKey(a.dataset.k);}
+};
+function slipSheet(e,digital){
+  const wa='https://wa.me/?text='+encodeURIComponent(`Receipt from ${S.trader.biz}\n${e.label}\nTotal ${R(e.amount)} (${mName[e.method]})\nReceipt ${e.id} · code ${e.sig.slice(0,8)}`);
+  return `<h3>${digital?'Payment confirmed':'Sale saved'}</h3>
+   <div class="slip"><div class="h">${esc(S.trader.biz)}</div><div class="s" style="text-align:center">${esc(S.trader.place)}</div><hr>
+   <div>${esc(e.label)}</div><hr><div class="t"><span>TOTAL</span><span>${R(e.amount)}</span></div><div>Paid by: ${mName[e.method]}</div>
+   <hr><div>${fmtDT(e.ts)}<br>Receipt ${e.id}<br>Sig ${e.sig.slice(0,8)}…${e.sig.slice(-6)}</div>
+   <div class="st">${digital?'CONFIRMED BY FNB':(e.status==='pending'?'SAVED · WILL SYNC':'SAVED')}</div></div>
+   <div class="row wrap"><a class="btn orange" style="flex:1" href="${wa}" target="_blank" rel="noopener">Send on WhatsApp</a><button class="btn ghost" style="flex:1" data-act="closeSheet">New sale</button></div>`;
+}
+function paySheet(){
+  const r=S.req;
+  return `<h3>${r.m==='qr'?'Show this QR code':'Send this pay link'}</h3>
+   <div class="row sp"><span class="big">${R(r.total)}</span><span id="payState"><span class="tag warn">Waiting for payment</span></span></div>
+   <p class="small">Reference ${r.rid} · expires in 10 minutes. The amount is signed into the code so it can't be changed.</p>
+   ${r.m==='qr'?'<div id="reqQR" class="qrbox heavy"></div>':''}
+   <div class="code mono">${r.link}</div>
+   ${r.m==='link'?`<div class="row" style="margin-top:.5rem"><a class="btn sm" href="https://wa.me/?text=${encodeURIComponent('Pay '+S.trader.biz+' '+R(r.total)+': '+r.link)}" target="_blank" rel="noopener">Send on WhatsApp</a><button class="btn sm ghost" data-act="copyLink">Copy link</button></div>`:''}
+   <div class="card" style="background:var(--warnbg);margin-top:.8rem"><p class="small" style="margin:0"><b>Demo only:</b> in real life the customer pays in their banking app and FNB confirms by signed message. This button plays that part.</p></div>
+   <div class="row" style="margin-top:.5rem"><button class="btn orange" style="flex:1" data-act="simPay">Simulate: customer pays</button><button class="btn ghost" data-act="closeSheet">Cancel</button></div>`;
+}
+A.copyLink=()=>{if(S.req)copy(S.req.link);};
+async function doSync(){
+  const pend=S.ledger.filter(e=>e.status==='pending');
+  S.online=true;renderHeader();
+  if(!pend.length){log('NET','back online · nothing to sync');render();toast('Back online');return;}
+  toast('Syncing '+pend.length+' entr'+(pend.length>1?'ies':'y')+'…');
+  const key=rnd(5);
+  const ok=await dbInsert(pend);
+  if(ok){pend.forEach(e=>e.status='synced');saveQueue();log('SYNC',`batch of ${pend.length} · idempotency key ${key} · duplicates ignored by server · ack`);markDemo('sync');render();toast('All synced');}
+  else{log('SYNC','upload failed, will retry when you toggle online');render();toast('Sync failed. Try again.');}
+}
+
+/* ---------- PIN ---------- */
+function lock(){S.locked=true;S.pinBuf='';S.pinMode=S.pinHash?'enter':'create';S.pinMsg=S.pinHash?'Enter your PIN':'Create a 4-digit PIN for this phone';closeSheet();render();}
+async function pinKey(k){
+  if(Date.now()<S.lockUntil)return;
+  if(k==='⌫')S.pinBuf=S.pinBuf.slice(0,-1);else if(S.pinBuf.length<4)S.pinBuf+=k;
+  render();
+  if(S.pinBuf.length<4)return;
+  const pin=S.pinBuf;S.pinBuf='';
+  if(!S.pinHash){
+    if(S.pinMode==='create'){S.pinTemp=pin;S.pinMode='confirm';S.pinMsg='Enter it again to confirm';}
+    else if(pin===S.pinTemp){S.pinSalt=crypto.getRandomValues(new Uint8Array(16));S.pinHash=await hashPin(pin,S.pinSalt);savePin();S.pinTemp='';S.locked=false;S.pinMode='enter';log('AUTH','PIN created · PBKDF2-SHA256 150,000 rounds · salt '+hex(S.pinSalt).slice(0,8)+'…');markDemo('pin');}
+    else{S.pinMode='create';S.pinMsg='PINs did not match. Start again.';}
+  }else{
+    const h=await hashPin(pin,S.pinSalt);
+    if(h===S.pinHash){S.locked=false;S.fails=0;log('AUTH','unlocked');}
+    else{S.fails++;S.pinMsg='Wrong PIN ('+S.fails+' of 3)';log('AUTH','wrong PIN attempt '+S.fails);if(S.fails>=3){S.lockUntil=Date.now()+30000;S.fails=0;setTimeout(()=>{if(S.locked){S.pinMsg='Enter your PIN';render();}},30500);}}
+  }
+  render();renderLab();
+}
+function bumpIdle(){clearTimeout(idle);if(S.pinHash&&!S.locked)idle=setTimeout(()=>{if(S.pinHash&&!S.locked){log('AUTH','auto-locked after 2 minutes idle');lock();}},120000);}
+
+/* ---------- lab actions ---------- */
+const L={
+ async labVerifyAll(){let ok=0;for(const e of S.ledger){if((await sign(canon(e)))===e.sig)ok++;}
+   const el=$('#labInt');el.className='res '+(ok===S.ledger.length?'ok':'bad');el.textContent=`${ok} of ${S.ledger.length} entries have a valid signature.`;},
+ async labTamper(){if(!S.ledger.length){$('#labInt').textContent='No entries yet.';return;}
+   const e=S.ledger[Math.floor(Math.random()*S.ledger.length)];const c={...e,amount:e.amount*10};
+   const good=(await sign(canon(e)))===e.sig,bad=(await sign(canon(c)))===e.sig;
+   const el=$('#labInt');el.className='res '+(bad?'ok':'bad');
+   el.innerHTML=`Entry <b>${e.id}</b>: original ${R(e.amount)} → signature ${good?'valid':'invalid'}.<br>Edited to ${R(c.amount)} → signature <b>${bad?'valid':'REJECTED'}</b>. Changing a number breaks the signature, so tampering is detected.`;
+   log('INTEGRITY',`tamper test on ${e.id}: edited copy rejected`);},
+ async labVerifyPass(){const r=await verifyPassCode($('#labCode').value);const el=$('#labPass');
+   if(r.ok){el.className='res ok';el.innerHTML=`<b>Valid.</b> Score ${r.p.score} (${r.p.tier}), ${r.p.days} days traded, income ${r.p.rev}, ${r.p.dig}% digital, ${r.p.mar}% margin. Valid until ${new Date(r.p.exp).toLocaleDateString('en-ZA')}. No customer data inside.`;}
+   else{el.className='res bad';el.textContent='Rejected. '+r.why;}},
+ async labTamperPass(){const c=$('#labCode');if(!c.value.trim()){$('#labPass').textContent='Create a Passport in the app first.';return;}
+   try{const [v,body,sig]=c.value.trim().split('.');const p=JSON.parse(unb64u(body));p.score=99;c.value=v+'.'+b64u(JSON.stringify(p))+'.'+sig;}catch(e){}
+   L.labVerifyPass();}
+};
+
+/* ---------- wiring ---------- */
+document.addEventListener('click',e=>{
+  const g=e.target.closest('[data-goto]');if(g){showView(g.dataset.goto);return;}
+  const v=e.target.closest('[data-view]');if(v){showView(v.dataset.view);return;}
+  const a=e.target.closest('[data-act]');if(!a)return;
+  const f=A[a.dataset.act]||L[a.dataset.act];if(f){if($('#phone').contains(a))bumpIdle();f(a,e);}
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#overlay').innerHTML)closeSheet();});
+function showView(k){
+  $$('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+k));
+  $$('.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.view===k));
+  window.scrollTo({top:0});if(k==='sec')renderLab();
+}
+(async function boot(){
+  if(sb){
+    try{const {data}=await sb.auth.getSession();if(data&&data.session){await startSession(data.session.user);return;}}catch(e){}
+    await initKey();render();renderLab();return;
+  }
+  await initKey();S.ledger=await genSample();loadPin();
+  log('BOOT',KEY?'demo mode · signing key generated (non-extractable HMAC-SHA256) · no database connected':'WebCrypto unavailable, demo fallback in use');
+  render();renderLab();
+})();
+})();
+</script>
+</body>
+</html>
